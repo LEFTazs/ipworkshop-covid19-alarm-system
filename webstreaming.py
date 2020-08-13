@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from flask import Flask, render_template, Response
+from flask import Flask, render_template, Response, jsonify
 import cv2
 import torch
 import torchvision
@@ -12,6 +12,7 @@ app = Flask(__name__)
 model = None
 data_transform = transforms.Compose([transforms.ToTensor(),])
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+statistic = {"mask": 0, "no-mask": 0, "incorrect-mask": 0}
 
 
 @app.route('/')
@@ -24,7 +25,8 @@ def gen(vc):
         has_frame, frame = vc.read()
         if has_frame:
             prediction = get_prediction_from_model(frame)
-            frame = draw_bboxes_on_image(frame, prediction)
+            update_statistic(prediction[0])
+            frame = draw_bboxes_on_image(frame, prediction[0])
             yield (b'--frame\r\n'
                    b'Content-Type: image/jpeg\r\n\r\n' + cv2.imencode('.jpg', frame)[1].tobytes() + b'\r\n')
 
@@ -35,11 +37,25 @@ def video_feed():
                     mimetype='multipart/x-mixed-replace; boundary=frame')
 
 
+@app.route('/rooms/1/statistics')
+def statistics():
+    return jsonify(statistic)
+
+
+@torch.no_grad()
 def get_prediction_from_model(img):
     img = data_transform(img)
     img = img.to(device)
     pred = model([img])
     return pred
+
+
+def update_statistic(prediction):
+    labels = prediction['labels']
+    counts = torch.bincount(labels, minlength=3)
+    statistic['mask'] = counts[0].item()
+    statistic['no-mask'] = counts[1].item()
+    statistic['incorrect-mask'] = counts[2].item()
 
 
 def draw_bboxes_on_image(img, prediction):
