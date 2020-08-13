@@ -53,14 +53,26 @@ def get_prediction_from_model(img):
 def update_statistic(prediction):
     labels = prediction['labels']
     counts = torch.bincount(labels, minlength=3)
-    statistic['mask'] = counts[0].item()
-    statistic['no-mask'] = counts[1].item()
+    statistic['no-mask'] = counts[0].item()
+    statistic['mask'] = counts[1].item()
     statistic['incorrect-mask'] = counts[2].item()
 
 
 def draw_bboxes_on_image(img, prediction):
-    #TODO: edit img so that it has boxes
+    for box, label in zip(prediction['boxes'], prediction['labels']):
+        xmin, ymin, xmax, ymax = box
+        color = __choose_bbox_color(label)
+        img = cv2.rectangle(img, (xmin, ymin), (xmax, ymax), color, 4)
     return img
+
+
+def __choose_bbox_color(label):
+    if label == 0:
+        return 0, 0, 255
+    elif label == 1:
+        return 0, 255, 0
+    elif label == 2:
+        return 255, 0, 0
 
 
 def create_model(num_classes):
